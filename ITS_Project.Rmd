@@ -1,0 +1,119 @@
+---
+title: "ITS_Project"
+author: "Ishaan_Pahuja"
+date: "2026-04-13"
+output: pdf_document
+---
+
+```{r}
+df <- read.csv("olympic.csv")
+```
+
+## SRS
+
+```{r}
+set.seed(999)
+library(dplyr)
+
+data <- read.csv("olympic.csv")
+
+# 1. Simple Random Sample
+# n=200
+
+set.seed(999)
+srs_sample <- data[sample(nrow(data), 200), ]
+
+```
+
+## Stratified
+
+```{r}
+# 2. Stratified Sample
+# n=100 for female and n=100 for male
+
+set.seed(999)
+stratified_sample <- data %>%
+  group_by(GENDER) %>%
+  sample_n(size = 100) %>%
+  ungroup()
+```
+
+## One Stage Cluster, SRS
+
+```{r}
+set.seed(999)
+
+data$SPORT <- trimws(data$SPORT)
+
+sports <- unique(data$SPORT)
+cluster_sizes <- table(data$SPORT)
+
+# SRS of 12 clusters, then all athletes in those clusters
+selected_srs1      <- sample(sports, 12)
+cluster_srs_sample <- data[data$SPORT %in% selected_srs1, ]
+```
+
+## One Stage Cluster, PPS
+
+```{r}
+set.seed(999)
+
+# PPS of 12 clusters (prob proportional to size), then all athletes
+selected_pps1 <- sample(names(cluster_sizes), 12,
+                        prob = as.numeric(cluster_sizes), replace = FALSE)
+cluster_pps_sample <- data[data$SPORT %in% selected_pps1, ]
+```
+
+## Stratified Clustering
+
+```{r}
+set.seed(999)
+
+female_data     <- data[data$GENDER == "F", ]
+sel_female_cl   <- sample(unique(female_data$SPORT), 12)
+strat_cl_female <- female_data[female_data$SPORT %in% sel_female_cl, ]
+
+male_data       <- data[data$GENDER == "M", ]
+sel_male_cl     <- sample(unique(male_data$SPORT), 12)
+strat_cl_male   <- male_data[male_data$SPORT %in% sel_male_cl, ]
+
+strat_cluster_sample <- rbind(strat_cl_female, strat_cl_male)
+```
+
+## Two Stage Cluster, SRS
+
+```{r}
+set.seed(999)
+
+get_mi <- function(Mi) {
+  if      (Mi <= 5)  Mi - 1
+  else if (Mi <= 20) floor(Mi / 2)
+  else if (Mi <= 50) floor(Mi / 3)
+  else               floor(Mi / 4)
+}
+
+selected_2srs <- sample(sports, 18)
+
+two_stage_srs_sample <- do.call(rbind, lapply(selected_2srs, function(sp) {
+  cl <- data[data$SPORT == sp, ]
+  mi <- get_mi(nrow(cl))
+  if (mi == 0) return(NULL)
+  cl[sample(nrow(cl), mi), ]
+}))
+```
+
+## Two Stage Cluster, PPS
+
+```{r}
+set.seed(999)
+
+selected_2pps <- sample(names(cluster_sizes), 18,
+                        prob = as.numeric(cluster_sizes), replace = FALSE)
+
+two_stage_pps_sample <- do.call(rbind, lapply(selected_2pps, function(sp) {
+  cl <- data[data$SPORT == sp, ]
+  mi <- get_mi(nrow(cl))
+  if (mi == 0) return(NULL)
+  cl[sample(nrow(cl), mi), ]
+}))
+```
