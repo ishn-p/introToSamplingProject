@@ -100,7 +100,79 @@ two_stage_srs_sample <- do.call(rbind, lapply(selected_2srs, function(sp) {
   if (mi == 0) return(NULL)
   cl[sample(nrow(cl), mi), ]
 }))
+
 ```
+Description:
+The sampling for Two Stage Clustering, with SRS within clusters is done via r. First I created a helper function to get the within cluster sample size via rules stated on the instruction docs. Then I sampled n=18 sports from a list of all the sports which represents the N clusters. After completing the first stage and obtaining the clusters, for each cluster I filtered the rows of the original data that have the sport/belong in the cluster, and called the helper function on the size of the cluster, Mi. Utilizing the mi, cluster sample size, I sampled the cluster via the included sample function.
+
+
+Sample Statistics
+```{r}
+cluster_stats <- two_stage_srs_sample %>%
+  group_by(SPORT) %>%
+  summarise(
+    mi = n(),
+    ybar = mean(HEIGHT),
+    s_sqr = var(HEIGHT),
+    p_hat = mean(`OLYMPIC.EXPERIENCE` == "Yes")
+  ) %>%
+  left_join(
+    data %>%
+      group_by(SPORT) %>%
+      summarise(Mi = n()), 
+    by = "SPORT"
+  ) %>%
+  select(SPORT, Mi, mi, ybar, s_sqr, p_hat)
+```
+
+Parameter Estimates
+```{r}
+Mi    <- cluster_stats$Mi
+mi    <- cluster_stats$mi
+ybar  <- cluster_stats$ybar
+s_sqr <- cluster_stats$s_sqr
+p_hat <- cluster_stats$p_hat
+
+N <- 30
+n <- 18
+M_bar_est <- mean(Mi)                  
+
+mu_r_hat <- sum(ybar * Mi) / sum(Mi)
+p_r_hat <- sum(p_hat * Mi) / sum(Mi)
+
+sr2_mu <- sum((Mi * ybar - Mi * mu_r_hat)^2) / (n - 1)
+sr2_p  <- sum((Mi * p_hat - Mi * p_r_hat)^2) / (n - 1)
+
+term1_mu <- (1 - n/N) * (sr2_mu / (n * M_bar_est^2))
+term2_mu <- (1 / (n * N * M_bar_est^2)) * sum(Mi^2 * (1 - mi/Mi) * (s_sqr / mi))
+var_mu_r <- term1_mu + term2_mu
+
+q_hat <- 1 - p_hat
+term1_p <- (1 - n/N) * (sr2_p / (n * M_bar_est^2))
+term2_p_elements <- ifelse(mi > 1, 
+                           Mi^2 * (1 - mi/Mi) * ((p_hat * q_hat) / (mi - 1)), 
+                           0)
+term2_p <- (1 / (n * N * M_bar_est^2)) * sum(term2_p_elements)
+var_p_r <- term1_p + term2_p
+
+bound_mu_r <- 2 * sqrt(var_mu_r)
+bound_p_r  <- 2 * sqrt(var_p_r)
+
+results_ratio <- data.frame(
+  Parameter = c("Mean Height", "Proportion"),
+  Estimate = c(mu_r_hat, p_r_hat),
+  Variance = c(var_mu_r, var_p_r),
+  Bound_of_Error = c(bound_mu_r, bound_p_r)
+)
+
+```
+
+```{r}
+mean(data$HEIGHT)
+mean(data$OLYMPIC.EXPERIENCE == "Yes")
+```
+
+#
 
 ## Two Stage Cluster, PPS
 
@@ -116,4 +188,7 @@ two_stage_pps_sample <- do.call(rbind, lapply(selected_2pps, function(sp) {
   if (mi == 0) return(NULL)
   cl[sample(nrow(cl), mi), ]
 }))
+
+
+
 ```
